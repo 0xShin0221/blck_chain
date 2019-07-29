@@ -10,14 +10,17 @@ import time
 import utils
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-
-MINNING_DIFICULTY = 3
+logger = logging.getLogger(__name__)
+MINING_DIFICULTY = 3
+MINING_SENDER = 'THE BLOCKCHAIN'
+MINING_REWORD = 1.5
 
 class BlockChain(object):
-	def __init__(self):
+	def __init__(self,blocakchain_address=None):
 		self.transaction_pool = []
 		self.chain = []
 		self.create_block(0, self.hash({}))
+		self.blocakchain_address = blocakchain_address
 
 	def create_block(self, nonce, previous_hash):
 		block = utils.sorted_dict_by_key({
@@ -45,7 +48,7 @@ class BlockChain(object):
 		return True
 
 	def valid_proof(self, transactions, previous_hash, nonce,
-					difficulty=MINNING_DIFICULTY):
+					difficulty=MINING_DIFICULTY):
 		guess_block = utils.sorted_dict_by_key({
 			'transactions': transactions,
 			'nonce':nonce,
@@ -62,18 +65,26 @@ class BlockChain(object):
 			nonce +=1
 		return nonce
 
+	def mining(self):
+		self.add_transaction(
+			sender_blockchain_address=MINING_SENDER,
+			recipient_blockchain_address=self.blocakchain_address,
+			value=MINING_REWORD)
+		nonce = self.proof_of_work()
+		previous_hash = self.hash(self.chain[-1])
+		self.create_block(nonce,previous_hash)
+		logger.info({'action':'mining','status':'success'})
+		return True
+
 if __name__== '__main__':
-	block_chain = BlockChain()
+	my_blockchain_address = 'my_blockchain_addres'
+	block_chain = BlockChain(blocakchain_address=my_blockchain_address)
 
 	block_chain.add_transaction('A','B',1.0)
-	previous_hash = block_chain.hash(block_chain.chain[-1])
-	nonce = block_chain.proof_of_work()
-	block_chain.create_block(nonce,previous_hash)
+	block_chain.mining()
 	utils.pprint(block_chain.chain)
 
 	block_chain.add_transaction('C','D',3.0)
 	block_chain.add_transaction('D','B',2.0)
-	previous_hash = block_chain.hash(block_chain.chain[-1])
-	nonce = block_chain.proof_of_work()
-	block_chain.create_block(nonce,previous_hash)
+	block_chain.mining()
 	utils.pprint(block_chain.chain)
