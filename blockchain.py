@@ -7,6 +7,9 @@ import logging
 import sys
 import time
 
+from ecdsa import NIST256p
+from ecdsa import VerifyingKey
+
 import utils
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
@@ -16,11 +19,11 @@ MINING_SENDER = 'THE BLOCKCHAIN'
 MINING_REWORD = 1.5
 
 class BlockChain(object):
-	def __init__(self,blocakchain_address=None):
+	def __init__(self,blockchain_address=None):
 		self.transaction_pool = []
 		self.chain = []
 		self.create_block(0, self.hash({}))
-		self.blocakchain_address = blocakchain_address
+		self.blockchain_address = blockchain_address
 
 	def create_block(self, nonce, previous_hash):
 		block = utils.sorted_dict_by_key({
@@ -37,15 +40,40 @@ class BlockChain(object):
 		sorted_block = json.dumps(block,sort_keys=True)
 		return hashlib.sha256(sorted_block.encode()).hexdigest()
 
+
 	def add_transaction(self, sender_blockchain_address,
-						recipient_blockchain_address, value):
+						recipient_blockchain_address, value,
+						sender_public_key=None, signature=None):
 		transaction = utils.sorted_dict_by_key({
 			'sender_blockchain_address':sender_blockchain_address,
 			'recipient_blockchain_address':recipient_blockchain_address,
 			'value':float(value)
 		})
-		self.transaction_pool.append(transaction)
-		return True
+		if sender_blockchain_address == MINING_SENDER:
+			self.transaction_pool.append(transaction)
+			return True
+		
+		if self.verify_transaction_signature(
+			sender_public_key, signature, transaction):
+			
+			# if self.calculate_total_ammount(sender_blockchain_address) < float(value):
+			# 	logger.error({'action': 'add_transaction', 'error': 'no_value'})
+			# 	return False
+
+			self.transaction_pool.append(transaction)
+			return True
+		return False
+
+	def verify_transaction_signature(
+		self, sender_public_key, signature, transaction):
+		sha256 = hashlib.sha256()
+		sha256.update(str(transaction).encode('utf-8'))
+		message = sha256.digest()
+		signature_bytes = bytes().fromhex(signature)
+		verifying_key = VerifyingKey.from_string(
+			bytes().fromhex(sender_public_key), curve=NIST256p)
+		verified_key = verifying_key.verify(signature_bytes, message)
+		return verified_key
 
 	def valid_proof(self, transactions, previous_hash, nonce,
 					difficulty=MINING_DIFICULTY):
@@ -68,7 +96,7 @@ class BlockChain(object):
 	def mining(self):
 		self.add_transaction(
 			sender_blockchain_address=MINING_SENDER,
-			recipient_blockchain_address=self.blocakchain_address,
+			recipient_blockchain_address=self.blockchain_address,
 			value=MINING_REWORD)
 		nonce = self.proof_of_work()
 		previous_hash = self.hash(self.chain[-1])
@@ -86,20 +114,3 @@ class BlockChain(object):
 				if blockchain_address == transaction['sender_blockchain_address']:
 					total_amount -= value
 		return total_amount
-
-if __name__== '__main__':
-	my_blockchain_address = 'my_blockchain_addres'
-	block_chain = BlockChain(blocakchain_address=my_blockchain_address)
-
-	block_chain.add_transaction('A','B',1.0)
-	block_chain.mining()
-	utils.pprint(block_chain.chain)
-
-	block_chain.add_transaction('C','D',3.0)
-	block_chain.add_transaction('D','B',2.0)
-	block_chain.mining()
-	utils.pprint(block_chain.chain)
-
-	print('my', block_chain.calculate_total_ammount(my_blockchain_address))
-	print('C', block_chain.calculate_total_ammount('C'))
-	print('D', block_chain.calculate_total_ammount('D'))
